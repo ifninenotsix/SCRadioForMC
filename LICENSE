@@ -1,0 +1,12 @@
+The mod source code in this repository is released into the public domain
+(CC0 1.0 Universal). Do what you want with it.
+
+Bundled third-party libraries keep their own licenses:
+
+- JAAD (net.sourceforge.jaad, com.tianscar.javasound:jaad) - public domain.
+- MP3SPI (com.googlecode.soundlibs:mp3spi) - LGPL 2.1+ / JavaZoom license.
+- JLayer (com.googlecode.soundlibs:jlayer) - LGPL 2.1+.
+- Tritonus Share (com.googlecode.soundlibs:tritonus-share) - LGPL 2.1+.
+
+See the source distributions of those libraries for the full license texts.
+Modifying and redistributing them must comply with their licenses.

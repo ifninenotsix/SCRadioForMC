@@ -1,0 +1,139 @@
+plugins {
+    id 'java'
+    id 'idea'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+group = mod_group_id
+version = mod_version
+
+base {
+    archivesName = "${mod_id}-${minecraft_version}"
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+minecraft {
+    mappings channel: mapping_channel, version: mapping_version
+
+    copyIdeResources = true
+
+    runs {
+        configureEach {
+            workingDirectory project.file('run')
+
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                }
+            }
+        }
+
+        client {
+            property 'forge.enabledGameTestNamespaces', mod_id
+        }
+
+        server {
+            args '--nogui'
+        }
+    }
+}
+
+sourceSets.main.resources {
+    srcDir 'src/generated/resources'
+}
+
+repositories {
+    mavenCentral()
+}
+
+configurations {
+    shadow
+    minecraftLibrary.extendsFrom(shadow)
+
+    // Test-only dependencies pulled in transitively by mp3spi must not end up
+    // in the mod jar. Forge treats every jar as a module, and duplicate
+    // packages such as junit.awtui break module resolution in modpacks.
+    shadow.exclude group: 'junit', module: 'junit'
+    shadow.exclude group: 'org.hamcrest', module: 'hamcrest-core'
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    // AAC (JAAD) - pure Java decoder, public domain. Used for SoundCloud HLS/fMP4.
+    implementation 'com.tianscar.javasound:jaad:0.9.4'
+    shadow 'com.tianscar.javasound:jaad:0.9.4'
+
+    // MP3 fallback for tracks that still expose a progressive MP3 stream.
+    implementation 'com.googlecode.soundlibs:mp3spi:1.9.5.4'
+    shadow 'com.googlecode.soundlibs:mp3spi:1.9.5.4'
+    implementation 'com.googlecode.soundlibs:jlayer:1.0.1.4'
+    shadow 'com.googlecode.soundlibs:jlayer:1.0.1.4'
+    implementation 'com.googlecode.soundlibs:tritonus-share:0.3.7.4'
+    shadow 'com.googlecode.soundlibs:tritonus-share:0.3.7.4'
+}
+
+// Shade the audio libraries into the mod jar so players don't need extra jars.
+shadowJar {
+    archiveClassifier.set('all')
+    configurations = [project.configurations.shadow]
+    mergeServiceFiles()
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'META-INF/MANIFEST.MF'
+    exclude 'junit/**', 'org/junit/**', 'org/hamcrest/**', 'hamcrest/**'
+}
+
+// ForgeGradle has to reobfuscate the shaded jar too, otherwise the mod won't
+// work on a production server/client.
+reobf {
+    shadowJar {
+        dependsOn tasks.createMcpToSrg
+        mappings = tasks.createMcpToSrg.outputs.files.singleFile
+    }
+}
+
+artifacts {
+    archives tasks.shadowJar
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            forge_version          : forge_version,
+            forge_version_range    : forge_version_range,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description
+    ]
+
+    inputs.properties replaceProperties
+
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties + [project: project]
+    }
+}
+
+tasks.named('jar', Jar).configure {
+    finalizedBy 'reobfJar'
+}
+
+tasks.named('build').configure {
+    dependsOn 'reobfShadowJar'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
